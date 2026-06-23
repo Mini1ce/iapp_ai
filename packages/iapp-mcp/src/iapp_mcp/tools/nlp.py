@@ -1,6 +1,6 @@
 """Thai NLP tools: translation, summarization, sentiment, toxicity, QA, question generation."""
 
-from typing import Literal, Optional, Any
+from typing import Any, Literal, Optional
 
 from ..app import mcp
 from ..client import IAppAPIError, format_json_response, request
@@ -46,7 +46,7 @@ async def iapp_translate(
         data: dict[str, Any] = {"text": text, "source_lang": source_lang, "target_lang": target_lang}
         if max_length is not None:
             data["max_length"] = max_length
-        response = await request("POST", "/v1/text/translate", data=data)
+        response = await request("POST", "/v3/store/nlp/multilingual-translation", json_body=data)
         return format_json_response(response)
     except IAppAPIError as e:
         return str(e)
@@ -147,7 +147,7 @@ async def iapp_thai_qa(question: str, document: str) -> str:
     try:
         response = await request(
             "POST",
-            "/thai-qa",
+            "/v3/store/nlp/question/answer/v3",
             json_body={"question": question, "document": document},
         )
         return format_json_response(response)

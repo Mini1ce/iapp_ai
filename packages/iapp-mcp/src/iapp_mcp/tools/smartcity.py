@@ -1,6 +1,6 @@
 """Smart city and data tools: license plate, meter OCR, route optimization, Thai holidays."""
 
-from typing import List, Literal, Optional, Any
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 

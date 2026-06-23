@@ -38,11 +38,16 @@ async def iapp_thai_id_card_ocr(
         Cost: 1.25 IC (front) / 0.75 IC (back).
     """
     try:
-        data = {"options": options} if options else None
+        data = {}
+        if options:
+            for flag in options.split(","):
+                flag = flag.strip()
+                if flag in ("not_crop_card", "not_rotate_card", "get_bbox", "get_image", "get_original"):
+                    data[flag] = "true"
         response = await request(
             "POST",
             f"/v3/store/ekyc/thai-national-id-card/{side}",
-            data=data,
+            data=data or None,
             file_fields=[("file", file_path)],
         )
         return format_json_response(response)

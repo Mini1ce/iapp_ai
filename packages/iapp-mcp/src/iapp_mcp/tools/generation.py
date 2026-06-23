@@ -1,7 +1,7 @@
 """Image and video generation tools: Nano Banana, background removal, Seedance video."""
 
 import base64
-from typing import Literal, Optional, Any
+from typing import Any, Literal, Optional
 
 from ..app import mcp
 from ..client import (

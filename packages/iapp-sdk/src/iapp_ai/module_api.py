@@ -11,12 +11,20 @@ The endpoints, request shapes and return values are unchanged for backward
 compatibility.
 """
 
+import base64
 import json
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
-from iapp_core import request_sync, open_input_files, build_output_path
+
+from iapp_core import (
+    API_BASE,
+    build_output_path,
+    build_url,
+    open_input_files,
+    request_sync,
+)
 
 
 taskGuid = ""
@@ -30,45 +38,88 @@ class api():
 
     ################## Thai Natural Language Processing ##################
 
-    def thai_qa_api(self, headers={}, question= {}, document={}):
+    def thai_qa_api(self, headers: Optional[Dict[str, Any]] = None, question: Any = "", document: Any = "") -> requests.Response:
+        headers = headers or {}
         request_data_payload = json.dumps({
             'question': question,
             'document': document})
 
-        return request_sync("POST", "https://api.iapp.co.th/thai-qa/inference",
+        return request_sync("POST", f"{API_BASE}/v3/store/nlp/question/answer/v3",
                             apikey=self.apikey,
                             headers={'Content-Type': 'application/json', **headers},
                             data=request_data_payload)
 
-    def thai_qgen_api(self, text={}, headers={}, data_payload={}):
-        url = "http://api.iapp.co.th/qa-generator-th?text=" + str(text) + "&apikey=" + str(self.apikey)
+    def thai_qgen_api(self, text: str = "", headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None) -> requests.Response:
+        """Generate question-answer pairs from a Thai text passage.
+
+        Endpoint: ``GET /v3/store/nlp/question/generation`` with the source text
+        sent as the ``text`` query parameter.
+        """
+        headers = headers or {}
+        data_payload = data_payload or {}
+        url = build_url(API_BASE, "v3/store/nlp/question/generation", {"text": str(text)})
 
         return request_sync("GET", url, apikey=self.apikey, headers=headers,
                             data={**data_payload})
 
-    def thai_text_summarization(self, text={}, output_length={}, headers={}, data_payload={}):
-        url = "https://api.iapp.co.th/text-summarization?text=" + str(text) + "&output_length=" + str(output_length)
+    def thai_text_summarization(self, text: str = "", style: Optional[str] = None, language: Optional[str] = None, max_output_tokens: Optional[int] = None, headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None) -> requests.Response:
+        """Summarize a Thai or English text passage.
 
-        return request_sync("GET", url, apikey=self.apikey, headers=headers,
-                            data={**data_payload})
+        Endpoint: ``POST /v3/store/nlp/thai-text-summary`` with a JSON body.
 
-    def eng_thai_translate(self, text={}, headers={}, data_payload={}):
-        url = "https://api.iapp.co.th/translate/auto?text="+text
+        Args:
+            text: The text to summarize (required).
+            style: Summary style — ``standard``, ``clarify`` or ``friendly``.
+            language: Output language — ``th`` or ``en``.
+            max_output_tokens: Optional cap on the length of the summary.
+            headers: Additional HTTP headers to send with the request.
+            data_payload: Extra JSON fields merged into the request body.
+        """
+        headers = headers or {}
+        data_payload = data_payload or {}
+        body: Dict[str, Any] = {"text": str(text)}
+        if style is not None:
+            body["style"] = style
+        if language is not None:
+            body["language"] = language
+        if max_output_tokens is not None:
+            body["max_output_tokens"] = max_output_tokens
+        body.update(data_payload)
 
-        return request_sync("GET", url, apikey=self.apikey, headers=headers,
-                            data={**data_payload})
+        return request_sync("POST", f"{API_BASE}/v3/store/nlp/thai-text-summary",
+                            apikey=self.apikey,
+                            headers={'Content-Type': 'application/json', **headers},
+                            json_body=body)
 
-    # #TODO: Will be Fixed
-    # def thai_text_parser(self, text={}, headers={}, data_payload={}):
-    #     request_headers = {"apikey":self.apikey, 'Content-Type': 'application/json', **headers}
-    #     request_data_payload = {**data_payload}
+    def eng_thai_translate(self, text: str = "", source_lang: str = "en", target_lang: str = "th", max_length: Optional[int] = None, headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None) -> requests.Response:
+        """Translate text between supported languages (Thai-optimized).
 
-    #     url = "https://api.iapp.co.th/text-thai-parser/parse/"+text
+        Endpoint: ``POST /v3/store/nlp/multilingual-translation`` with a JSON body.
 
-    #     response = requests.request("GET", url, headers=request_headers, data=request_data_payload)
+        Args:
+            text: The text to translate (required).
+            source_lang: Source language code (defaults to ``en``).
+            target_lang: Target language code (defaults to ``th``).
+            max_length: Optional cap on the number of output tokens.
+            headers: Additional HTTP headers to send with the request.
+            data_payload: Extra JSON fields merged into the request body.
+        """
+        headers = headers or {}
+        data_payload = data_payload or {}
+        body: Dict[str, Any] = {
+            "text": text,
+            "source_lang": source_lang,
+            "target_lang": target_lang,
+        }
+        if max_length is not None:
+            body["max_length"] = max_length
+        body.update(data_payload)
 
-    #     print(json.loads(response.text))
-    #     return response
+        return request_sync("POST", f"{API_BASE}/v3/store/nlp/multilingual-translation",
+                            apikey=self.apikey,
+                            headers={'Content-Type': 'application/json', **headers},
+                            json_body=body)
+
 
 
 
@@ -102,7 +153,7 @@ class api():
         with open_input_files([file_path]) as [fh]:
             request_files = [('file',(filename, fh,'image/jpg'))]
             request_files.extend(files)
-            return request_sync("POST", "https://api.iapp.co.th/thai-national-id-card/v3/front",
+            return request_sync("POST", f"{API_BASE}/v3/store/ekyc/thai-national-id-card/front",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
@@ -134,7 +185,7 @@ class api():
         with open_input_files([file_path]) as [fh]:
             request_files = [('file',(filename, fh,'image/jpg'))]
             request_files.extend(files)
-            return request_sync("POST", "https://api.iapp.co.th/thai-national-id-card-with-signature/front",
+            return request_sync("POST", f"{API_BASE}/v3/store/ekyc/thai-national-id-card-with-signature",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
@@ -167,24 +218,29 @@ class api():
             request_files = [('file',(filename, fh,'image/jpg'))]
             request_files.extend(files)
 
-            return request_sync("POST", "https://api.iapp.co.th/thai-national-id-card/v3.5/back",
+            return request_sync("POST", f"{API_BASE}/v3/store/ekyc/thai-national-id-card/back",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
-    def license_plate_ocr(self, file_path, headers={}, data_payload={}, files=[]):
+    def license_plate_ocr(self, file_path: str, headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None, files: Optional[List[Any]] = None) -> requests.Response:
+        headers = headers or {}
+        data_payload = data_payload or {}
+        files = files or []
         filename = os.path.basename(file_path)
-        request_files = [('file',(filename, open(file_path,'rb'),'image/jpg'))]
-        request_files.extend(files)
+        with open_input_files([file_path]) as (file_obj,):
+            request_files = [('file',(filename, file_obj, 'image/jpg'))]
+            request_files.extend(files)
 
-        return request_sync("POST", "https://api.iapp.co.th/license-plate-recognition/file",
-                            apikey=self.apikey, headers=headers,
-                            data={**data_payload}, files=request_files)
+            return request_sync("POST", f"{API_BASE}/v3/store/smart-city/license-plate-ocr",
+                                apikey=self.apikey, headers=headers,
+                                data={**data_payload}, files=request_files)
 
-    def license_plate_base64(self, headers={}, data_payload={}):
+    def license_plate_base64(self, headers: Optional[Dict[str, Any]] = None, data_payload: Any = None) -> requests.Response:
+        headers = headers or {}
         request_data_payload = json.dumps({
             'image': data_payload})
 
-        return request_sync("POST", "https://api.iapp.co.th/iapp_license_plate_recognition_v1_base64",
+        return request_sync("POST", f"{API_BASE}/v3/store/smart-city/license-plate-ocr/base64",
                             apikey=self.apikey,
                             headers={'Content-Type': 'application/json', **headers},
                             data=request_data_payload)
@@ -219,7 +275,7 @@ class api():
             request_files = [('file',(filename, fh,'image/jpg'))]
             request_files.extend(files)
 
-            return request_sync("POST", "https://api.iapp.co.th/book-bank-ocr/file",
+            return request_sync("POST", f"{API_BASE}/v3/store/ekyc/book-bank",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
@@ -252,7 +308,7 @@ class api():
             request_files = [('file',(filename, fh))]
             request_files.extend(files)
 
-            return request_sync("POST", "https://api.iapp.co.th/passport-ocr/ocr",
+            return request_sync("POST", f"{API_BASE}/v3/store/ekyc/passport",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
@@ -432,33 +488,43 @@ class api():
     #     response = requests.request("POST", "https://api.iapp.co.th/signature-detection/file", headers=request_headers, data=request_data_payload, files=request_files)
     #     return response
 
-    def power_meter(self, headers={}, image= {}):
-        request_files = open(image,'r')
-        data = request_files.read()
-        #close file
-        request_files.close()
+    def power_meter(self, headers: Optional[Dict[str, Any]] = None, image: str = "") -> requests.Response:
+        """Read the number from a power/water meter image (base64 variant).
+
+        Endpoint: ``POST /v3/store/smart-city/power-meter-and-water-meter``
+        with the image base64-encoded in a JSON body ``{"image": ...}``.
+        """
+        headers = headers or {}
+        with open_input_files([image]) as (image_file,):
+            data = base64.b64encode(image_file.read()).decode("ascii")
         request_data_payload = json.dumps({
             'image': data})
 
-        return request_sync("POST", "https://titipakorn.xyz/ocr/api/predict/ocr_detect/",
-                            apikey=self.apikey, headers=headers,
+        return request_sync("POST", f"{API_BASE}/v3/store/smart-city/power-meter-and-water-meter",
+                            apikey=self.apikey,
+                            headers={'Content-Type': 'application/json', **headers},
                             data=request_data_payload)
 
 
-    def water_meter_binary(self, file_path, headers={}, data_payload={}, files=[]):
+    def water_meter_binary(self, file_path: str, headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None, files: Optional[List[Any]] = None) -> requests.Response:
+        headers = headers or {}
+        data_payload = data_payload or {}
+        files = files or []
         filename = os.path.basename(file_path)
-        request_files = [('file',(filename, open(file_path,'rb'),'image/jpg'))]
-        request_files.extend(files)
+        with open_input_files([file_path]) as (file_obj,):
+            request_files = [('file', (filename, file_obj, 'image/jpg'))]
+            request_files.extend(files)
 
-        return request_sync("POST", "https://api.iapp.co.th/meter-number-ocr/file",
-                            apikey=self.apikey, headers=headers,
-                            data={**data_payload}, files=request_files)
+            return request_sync("POST", f"{API_BASE}/v3/store/smart-city/power-meter-and-water-meter/file",
+                                apikey=self.apikey, headers=headers,
+                                data={**data_payload}, files=request_files)
 
-    def water_meter_base64(self, headers={}, data_payload={}):
+    def water_meter_base64(self, headers: Optional[Dict[str, Any]] = None, data_payload: Any = None) -> requests.Response:
+        headers = headers or {}
         request_data_payload = json.dumps({
             'image': data_payload})
 
-        return request_sync("POST", "https://api.iapp.co.th/meter-number-ocr/base64",
+        return request_sync("POST", f"{API_BASE}/v3/store/smart-city/power-meter-and-water-meter/base64",
                             apikey=self.apikey,
                             headers={'Content-Type': 'application/json', **headers},
                             data=request_data_payload)
@@ -503,6 +569,47 @@ class api():
             return request_sync("POST", "https://api.iapp.co.th/v3/store/ekyc/face-verification",
                                 apikey=self.apikey, headers=headers,
                                 data=request_data_payload, files=request_files)
+
+    def face_id_card_verification(
+        self,
+        id_card_path: str,
+        selfie_path: str,
+        headers: Optional[Dict[str, str]] = None,
+        data_payload: Optional[Dict[str, Any]] = None,
+        files: Optional[List[Any]] = None,
+    ) -> requests.Response:
+        """Verify that a selfie matches the face photo on a Thai national ID card.
+
+        The core eKYC identity check: compares a selfie against the face on an ID
+        card and returns per-image and total confidence plus ``isSamePerson``
+        verdicts. Unlike :meth:`face_verification` (face-to-face 1:1), this pairs a
+        selfie with the photo extracted from the ID card.
+
+        Args:
+            id_card_path: Path to the ID card image (JPG/PNG, min 600x400, max 10MB).
+            selfie_path: Path to the selfie image (same constraints).
+            headers: Additional HTTP headers to send with the request.
+            data_payload: Additional form-data parameters to send.
+            files: Additional files to upload.
+
+        Returns:
+            requests.Response: The HTTP response from the API server.
+        """
+        if headers is None:
+            headers = {}
+        if data_payload is None:
+            data_payload = {}
+        if files is None:
+            files = []
+        filename0 = os.path.basename(id_card_path)
+        filename1 = os.path.basename(selfie_path)
+        with open_input_files([id_card_path, selfie_path]) as [fh0, fh1]:
+            request_files = [('file0',(filename0, fh0,'application/octet-stream')),('file1',(filename1, fh1,'application/octet-stream'))]
+            request_files.extend(files)
+
+            return request_sync("POST", "https://api.iapp.co.th/v3/store/ekyc/face-and-id-card-verification",
+                                apikey=self.apikey, headers=headers,
+                                data={**data_payload}, files=request_files)
 
     def _face_config_score(self, data_payload, headers=None):
         if headers is None:
@@ -574,42 +681,7 @@ class api():
             request_files.extend(files)
 
             return request_sync("POST", "https://api.iapp.co.th/v3/store/ekyc/face-verification",
-                                apikey=self.apikey, headers=headers,
-                                data={**data_payload}, files=request_files)
 
-    def face_and_id_card_verification(
-        self,
-        id_card_path: str,
-        selfie_path: str,
-        headers: Optional[Dict[str, str]] = None,
-        data_payload: Optional[Dict[str, Any]] = None,
-        files: Optional[List[Any]] = None,
-    ) -> requests.Response:
-        """Verify that a selfie matches the face photo on a Thai national ID card.
-
-        Args:
-            id_card_path: Path to the ID card image.
-            selfie_path: Path to the selfie image.
-            headers: Additional HTTP headers to send with the request.
-            data_payload: Additional form-data parameters to send.
-            files: Additional files to upload.
-
-        Returns:
-            requests.Response: The HTTP response from the API server.
-        """
-        if headers is None:
-            headers = {}
-        if data_payload is None:
-            data_payload = {}
-        if files is None:
-            files = []
-        filename0 = os.path.basename(id_card_path)
-        filename1 = os.path.basename(selfie_path)
-        with open_input_files([id_card_path, selfie_path]) as [fh0, fh1]:
-            request_files = [('file0', (filename0, fh0, 'image/jpg')), ('file1', (filename1, fh1, 'image/jpg'))]
-            request_files.extend(files)
-
-            return request_sync("POST", "https://api.iapp.co.th/v3/store/ekyc/face-and-id-card-verification",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
@@ -1122,36 +1194,69 @@ class api():
             request_files = [('file',(filename, fh,'image/jpg'))]
             request_files.extend(files)
 
-            return request_sync("POST", "https://api.iapp.co.th/thai-driver-license-ocr",
+            return request_sync("POST", f"{API_BASE}/v3/store/ekyc/thai-driver-license",
                                 apikey=self.apikey, headers=headers,
                                 data={**data_payload}, files=request_files)
 
 
     ################## Voice and Speech ##################
 
-    def thai_asr_api(self, file_path, headers={}, data_payload={}, files=[]):
-        request_files = [('file',(file_path, open(file_path,'rb'),'audio/mpga'))]
-        request_files.extend(files)
+    def thai_asr_api(self, file_path: str, headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None, files: Optional[List[Any]] = None) -> requests.Response:
+        """Transcribe a Thai audio file to text.
 
-        return request_sync("POST", "https://api.iapp.co.th/asr",
-                            apikey=self.apikey, headers=headers,
-                            data={**data_payload}, files=request_files)
+        Endpoint: ``POST /v3/store/speech/speech-to-text/base``, sent as
+        multipart form-data with the audio under the ``file`` field. Optional
+        form fields (e.g. ``chunk_size``, ``use_asr_pro``) may be supplied via
+        ``data_payload``.
+        """
+        headers = headers or {}
+        data_payload = data_payload or {}
+        files = files or []
+        with open_input_files([file_path]) as (file_obj,):
+            request_files = [('file',(file_path, file_obj, 'audio/mpga'))]
+            request_files.extend(files)
 
-    def thai_thaitts_kaitom(self, text={}, headers={}, data_payload={} ):
-        request_url = "https://api.iapp.co.th/thai-tts-kaitom/tts?text=" + text
+            return request_sync("POST", f"{API_BASE}/v3/store/speech/speech-to-text/base",
+                                apikey=self.apikey, headers=headers,
+                                data={**data_payload}, files=request_files)
 
-        response = request_sync("GET", request_url, apikey=self.apikey, headers=headers,
-                                data={**data_payload})
-        with open("media/kaitom.wav", "wb") as file:
+    def thai_thaitts_kaitom(self, text: str = "", headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None, output_path: Optional[str] = None) -> requests.Response:
+        """Synthesize Thai speech and save the audio to a local file.
+
+        Endpoint: ``POST /v3/store/audio/tts`` with a JSON body ``{"text": ...}``.
+        The response audio is written to ``output_path`` (defaults to
+        ``kaitom.wav`` in the output directory).
+        """
+        headers = headers or {}
+        data_payload = data_payload or {}
+        body = {"text": text, **data_payload}
+
+        response = request_sync("POST", f"{API_BASE}/v3/store/audio/tts",
+                                apikey=self.apikey,
+                                headers={'Content-Type': 'application/json', **headers},
+                                json_body=body)
+        path = build_output_path("kaitom.wav", output_path)
+        with open(path, "wb") as file:
             file.write(response.content)
         return response
 
-    def thai_thaitts_cee(self, text={}, headers={}, data_payload={} ):
-        request_url = "https://api.iapp.co.th/thai-tts-cee/tts?text=" + text
+    def thai_thaitts_cee(self, text: str = "", headers: Optional[Dict[str, Any]] = None, data_payload: Optional[Dict[str, Any]] = None, output_path: Optional[str] = None) -> requests.Response:
+        """Synthesize Thai speech and save the audio to a local file.
 
-        response = request_sync("GET", request_url, apikey=self.apikey, headers=headers,
-                                data={**data_payload})
-        with open("media/cee.wav", "wb") as file:
+        Endpoint: ``GET /v3/store/speech/text-to-speech/cee`` with query params ``text``.
+        The response audio is written to ``output_path`` (defaults to
+        ``cee.wav`` in the output directory).
+        """
+        headers = headers or {}
+        data_payload = data_payload or {}
+        params = {"text": text, **data_payload}
+
+        response = request_sync("GET", f"{API_BASE}/v3/store/speech/text-to-speech/cee",
+                                apikey=self.apikey,
+                                headers=headers,
+                                params=params)
+        path = build_output_path("cee.wav", output_path)
+        with open(path, "wb") as file:
             file.write(response.content)
         return response
 
@@ -1200,7 +1305,11 @@ class api():
         """Thanoy Thai Legal AI chatbot (ทนายAI)."""
         headers = headers or {}
         payload = json.dumps({"query": query})
+<<<<<<< HEAD
         return request_sync("POST", "https://api.iapp.co.th/thanoy", apikey=self.apikey,
+=======
+        return request_sync("POST", f"{API_BASE}/v3/store/llm/thanoy-legal-ai", apikey=self.apikey,
+>>>>>>> dda0f8bc9493aec1123dedf40b543e8e2cb3f5a4
                             headers={'Content-Type': 'application/json', **headers},
                             data=payload)
 
